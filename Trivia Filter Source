@@ -1,0 +1,123 @@
+/* File: trivia.js
+ * Function to intercept General Chat network traffic from the game server and echo any GM posts to the trivia window
+ */
+
+if (!document.querySelector("#triviaDiv")) {
+    var d = document.createElement("div");
+    d.setAttribute("style","font-size: 1.6rem");
+    d.setAttribute("id", "triviaDiv");
+    d.setAttribute("style", "background-color: cream");
+    d.setAttribute("display", "hidden");
+    d.setAttribute("title","GM posts");
+    document.getElementsByTagName('body')[0].appendChild(d);    
+}
+trivia = {
+    showTool: function (id) {
+        var winHeight = window.innerHeight;
+        var maxHt = parseInt(0.9 * winHeight);
+        var winWidth = window.innerWidth;
+        var maxWd = parseInt(0.75 * winWidth);
+        me = {width: 'auto', maxWd: maxWd, height: 'auto', maxHt: maxHt, pos: {left: 'center', top: 20}};
+        $(function () {
+            $(id).dialog({
+                "width": me.width,
+                "maxWidth": me.maxWd,
+                "height": me.height,
+                "maxHeight": me.maxHt,
+                resizeStop: function (event, ui) {
+                    me.width = ui.size.width;
+                    me.height = ui.size.height;
+                    me.pos = ui.position;
+                },
+                dragStop: function (event, ui) {
+                    me.pos = ui.position;
+                },
+                beforeClose: function (event, ui) {
+//                    dt.popupStates[flag] = false
+                }
+            });
+        });
+        // 
+    }
+};
+
+    trivia.showTool("#triviaDiv");
+
+logEntry = function (id, postDate, postTime, poster, posterAlliance, message) {
+    this.id = id;
+    this.postDate = postDate;
+    this.postTime = postTime;
+    this.poster = poster;
+    this.posterAlliance = posterAlliance;
+    this.message = message;
+};
+
+$(document).ajaxSuccess(function (event, xhr, settings) {
+    var url = settings.url.split("?")[0];
+    var bits = url.split("/");
+
+    switch (bits[3]) {
+        case "Chat":
+            // Get the returned data and process it then send it to the server.
+            var r = JSON.parse(xhr.responseText);
+            if (r.GlobalChats !== null) {
+                var gcPosts = r.GlobalChats;
+                var posts = Object.keys(gcPosts);
+                for (i = 0; i < posts.length; i++) {
+                    var thisPost = gcPosts[posts[i]];
+                    // Only proceed if the PlayerId === -1
+                    if (thisPost.PlayerId === -1) {
+//                    if(thisPost.PlayerId === 364060){
+                        /* post properties:    
+                         * PlayerId - id of the player making the post
+                         * toPlayerId - ? possibly the id of the other party in a private chat
+                         * chatid - id of the post/private chat
+                         * added - the unix timestamp of the post /Date(1490716344823)/
+                         * addedText - the time to display for the post
+                         * Playerlink - string holding the details of the posting player. p=Rey Musterio|354161|HOTH|740|1|0||||0-387-284-60
+                         * text - the text posted
+                         */
+                        // Extract the timestamp from the added property
+                        var tDate = new Date(parseInt(thisPost.added.split("/Date(")[1].split(")/")[0]))
+                        var a = tDate.getDate();
+                        var b = tDate.getMonth() + 1;
+                        var c = tDate.getFullYear();
+                        // Make the date string
+                        var dString = a + "-" + b + "-" + c;
+                        // Parse the Playerlink
+                        var pl = thisPost.PlayerLink.replace("p=", "");
+                        var plArray = pl.split("|");
+
+
+                        var thisPostData = new logEntry(thisPost.chatid, dString, thisPost.addedText, plArray[0], plArray[2], thisPost.text);
+//                    postToTrivia(thisPostData);
+                        postToTrivia(thisPost);
+                    }
+                }
+            }
+            break;
+    }
+});
+postToTrivia = function postToTrivia(post) {
+    /* post properties:    
+     * PlayerId - id of the player making the post
+     * toPlayerId - ? possibly the id of the other party in a private chat
+     * chatid - id of the post/private chat
+     * added - the unix timestamp of the post /Date(1490716344823)/
+     * addedText - the time to display for the post
+     * Playerlink - string holding the details of the posting player. p=Rey Musterio|354161|HOTH|740|1|0||||0-387-284-60
+     * text - the text posted
+     */
+    // Build the div for the post
+    var parts = post.PlayerLink.split("|")[0];
+    var pName = parts.substring(2);
+    var thisDiv = "<span class='time'>[" + post.addedText + "]</span>&lt;";
+    thisDiv += "<span class='name nameGM' data='" + post.PlayerLink + "' name='player-1'>" + pName + "</span>&gt;" + post.text;
+    // Get the trivia div and add the post div to it.
+    var trivDiv = document.getElementById("triviaDiv");
+    var d = document.createElement("div");
+    newDiv = trivDiv.appendChild(d);
+    newDiv.innerHTML = thisDiv;
+    trivDiv.scrollTop = trivDiv.scrollHeight;
+
+};
